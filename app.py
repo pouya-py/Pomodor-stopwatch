@@ -1,39 +1,40 @@
 import tkinter as tk
 import time
 from tkinter.ttk import Checkbutton, Separator
-
+from utils import format_time
 
 # TODO implement rest time. and fix reset func
 
 def timer():
     """
-    Repeatedly executed and changes the stopwatch timer.
+    Repeatedly will be executed and changes the stopwatch timer.
     :Return:None
     """
     global root_after
+    clock_string_var.set(format_time(time.time() - start_time))
+    root_after = root.after(5, timer)
+    if 'selected' in pomodoro_check_button.state():
+        if remaining_rounds > 0:
+            update_rounds()
+        else:
+            reset()
+
+def update_rounds():
     global running
     global remaining_rounds
-
-    clock_string_var.set(format_time(time.time() - start_time))
-    root_after = root.after(50, timer)
-    round_remaining_label['text'] = f'Round remained: {remaining_rounds}'
-    if 'selected' in pomodoro_check_button.state():
-        _,minute,sec = clock_string_var.get().split(':')
-        if sec == '02':
-            remaining_rounds -= 1 
-            print(remaining_rounds)    
-            if remaining_rounds == 0:
-                print('run') 
-                reset()
-            else:
-                running = False
-                start()
-
-
+    global round_remaining_label
+    _, minute, sec = clock_string_var.get().split(':')
+    if sec in ['03',]:
+        remaining_rounds -= 1 
+        round_remaining_label['text'] = f'{remaining_rounds} from total of {variable.get()*4}'
+        print(remaining_rounds)
+        if remaining_rounds <= 0:
+            round_remaining_label['text'] = f'0 from total of {variable.get()*4}'
+            stop_or_continue()
 
 def start():
     """
-    Start the stopwatch whenever start button presses.
+    Start the stopwatch whenever start button pressed.
     nothing happens if the stopwatch already started.
     :return: None
     """
@@ -41,14 +42,16 @@ def start():
     global start_time
     global stopped_time
     stopped_time = None
-
     if not running:
         clock_string_var.set('00:00:00')
         start_time = time.time()
         timer()
         running = True
         toggle_stop_text()
-    
+    # disable level selection
+    if selection_box:
+        selection_box.configure(state='disabled')
+
 def stop_or_continue():
     """
     Stops stopwatch whenever stop button pressed.
@@ -59,19 +62,20 @@ def stop_or_continue():
     global running    
     global start_time
     global stopped_time
- 
+    if remaining_rounds <= 0:
+        return
     if running:
+        # stop the timer
         stopped_time = time.time()    
         root.after_cancel(root_after)
         running = False
         toggle_stop_text()
     elif not running and stop_button['text'] == 'CONTINUE':
-        # update start_time 
+        # continue the timer
         start_time = time.time() - (stopped_time-start_time)
         timer()
         running = True
         toggle_stop_text()
-
 
 def reset():
     """
@@ -80,16 +84,21 @@ def reset():
     """
     global running
     global remaining_rounds
+    global round_remaining_label
     if running:
         running = False
         root.after_cancel(root_after)
     stop_button['text'] = 'STOP'
     clock_string_var.set('00:00:00')
-    remaining_rounds = variable.get() * 4
+    remaining_rounds = int(variable.get()) * 4
+    if selection_box:
+        round_remaining_label['text'] = f'{remaining_rounds} from total of {variable.get()*4}'
+        selection_box.configure(state='active')
+        selection_box.focus_force()
 
 def toggle_stop_text():
     """
-    Toggle the stop button text to [continue/stop].
+    Toggle the stop button text to continue/stop.
     :return: None
     """
     if running:
@@ -97,17 +106,6 @@ def toggle_stop_text():
     else:
         stop_button['text'] = 'CONTINUE'
     return 
-
-def format_time(elapsed):
-    """
-    Returns specified formatted time.
-    :param:elapsed: str : string of epoch time
-    :Return: str
-    """
-    hours = int(elapsed/3600)
-    minutes = int(elapsed/60 - hours * 60)
-    seconds = int(elapsed - hours*3600 - minutes*60)
-    return '%02d:%02d:%02d' %(hours, minutes, seconds)
 
 
 def add_selection_frame():
@@ -121,15 +119,14 @@ def add_selection_frame():
     global selection_label
     global popup_label
     global popup_button
-    values = [1,2,3,4,5]
+    LEVELS = [1,2,3,4,5]
     variable.set(1)
     # if check button selected
     if 'selected' in pomodoro_check_button.state():
         selection_box = tk.OptionMenu(pomodoro_frame, variable,
-            *values, command=get_remaining_rounds)
+            *LEVELS, command=set_remaining_rounds_label)
         selection_label = tk.Label(pomodoro_frame,
-            text='Choose the number of rounds then\n\
-            press "start"')
+            text='Choose your level and press "start"')
         selection_label.grid(column=1,row=2)
         selection_box.grid(column=1, row=3, pady=3)
         popup_label = tk.Label(popup_frame, 
@@ -140,26 +137,27 @@ def add_selection_frame():
         popup_button.grid(column=1,row=0, padx=4)
 
         round_remaining_label = tk.Label(timer_frame,
-                text=f'Round remained: {remaining_rounds}',
+                text=f'{remaining_rounds} from total of {variable.get()*4}',
                 fg='red')
         round_remaining_label.grid()
+
+
     else:
         selection_box.grid_forget()
         selection_label.grid_forget()
         popup_button.grid_forget()
         popup_label.grid_forget()
         round_remaining_label.grid_forget()
-    return None
+    return 
 
-def get_remaining_rounds(e):
+def set_remaining_rounds_label(e):
     """
     returns the number of rounds remaining 
-    :param: e = event
-    :return: string
+    :return: str
     """
-    global remaining_rounds
-    remaining_rounds = variable.get() * 4
-    return remaining_rounds
+    global round_remaining_label
+    round_remaining_label['text'] = f'{variable.get()*4} from total of {variable.get()*4}'
+    
 
 
 def popup_window():
@@ -178,8 +176,7 @@ def popup_window():
     text_widget.pack()
     text_widget.tag_add("start", "2.34","3.15")
     text_widget.tag_config("start", foreground= "blue")
-    
-    return None
+    return 
     
 
 
@@ -187,16 +184,16 @@ def popup_window():
 if __name__ == '__main__':
 
     running = False
-    start_time = None
-    stopped_time = None
-    root_after = None
+    selection_box = None
 
     root = tk.Tk(className='Pro StopWatch')
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
     root.minsize(300,200)
+    # set a global tk string variable
     clock_string_var = tk.StringVar()
     clock_string_var.set('00:00:00')
+    # set a global tk integer variable
     variable = tk.IntVar()
     timer_frame = tk.Frame(master=root, padx=20, pady=10)
     pomodoro_frame = tk.Frame(master=root)
@@ -213,8 +210,7 @@ if __name__ == '__main__':
         text='ACTIVATE POMODORO TECHNIQUE',
         command=add_selection_frame, cursor='dot',underline=9)
     pomodoro_check_button.grid(column=1, row=0, pady=5)
-
-    # Actual timer string 
+    # the timer string 
     tk.Label(timer_frame, textvariable=clock_string_var, fg='green',
         justify='center',font=('Times New Roman',50)).grid(row=0,)
 
